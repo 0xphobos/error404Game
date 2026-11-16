@@ -1,4 +1,4 @@
-#include "nucleo/Menu.h"
+#include "nucleo/Menu (1).h"
 
 Menu::Menu() : fuenteCargada(false), seleccion(0) {
     opciones[0] = "Jugar";
