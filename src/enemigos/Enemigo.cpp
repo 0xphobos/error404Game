@@ -1,17 +1,16 @@
 
 #include "enemigos/Enemigo.h"
 
-// Constructor
 Enemigo::Enemigo(float x, float y,
                  float ancho, float alto,
                  int vida, float velocidad)
     : Entidad(x, y, ancho, alto, vida),
       velocidad(velocidad),
-      mirandoDerecha(true)
+      mirandoDerecha(true),
+      arma()
 {
 }
 
-// Movimiento horizontal compartido
 void Enemigo::moverHorizontal(float dt)
 {
     if (mirandoDerecha)
@@ -24,19 +23,31 @@ void Enemigo::moverHorizontal(float dt)
     }
 }
 
-// Cambiar dirección
 void Enemigo::invertirDireccion()
 {
     mirandoDerecha = !mirandoDerecha;
 }
 
-// Obtener velocidad
+void Enemigo::actualizarArma(float dt)
+{
+    arma.actualizar(dt);
+}
+
+void Enemigo::dibujarArma(sf::RenderWindow& ventana)
+{
+    arma.dibujar(ventana);
+}
+
+int Enemigo::procesarImpactos(Entidad& objetivo)
+{
+    return arma.procesarImpactos(objetivo, true);
+}
+
 float Enemigo::getVelocidad() const
 {
     return velocidad;
 }
 
-// Consultar dirección
 bool Enemigo::estaMirandoDerecha() const
 {
     return mirandoDerecha;
