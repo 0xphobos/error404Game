@@ -12,10 +12,13 @@ JefeMapa1::JefeMapa1(float x, float y)
 // Actualización del jefe
 void JefeMapa1::actualizar(float dt)
 {
-    // Actualizar las fases según la vida restante
+    if (!estaVivo())
+    {
+        return;
+    }
+
     Jefe::actualizar(dt);
 
-    // Controlar el tiempo entre ataques
     tiempoAtaque += dt;
 
     if (tiempoAtaque >= intervaloAtaque)
@@ -24,16 +27,20 @@ void JefeMapa1::actualizar(float dt)
     }
 }
 
-// Dibujar al jefe
+// Dibujar al jefe y sus proyectiles
 void JefeMapa1::dibujar(sf::RenderWindow& ventana)
 {
+    if (!estaVivo())
+    {
+        return;
+    }
+
     sf::RectangleShape forma(
         sf::Vector2f(ancho, alto)
     );
 
     forma.setPosition(x, y);
 
-    // El color cambia según la fase
     if (fase == 1)
     {
         forma.setFillColor(sf::Color(120, 40, 180));
@@ -48,17 +55,19 @@ void JefeMapa1::dibujar(sf::RenderWindow& ventana)
     }
 
     ventana.draw(forma);
+
+    dibujarArma(ventana);
 }
 
 // Ejecutar el ataque
 void JefeMapa1::atacar()
 {
-    // Reiniciar el temporizador del ataque
     tiempoAtaque = 0.f;
 
-    // TODO:
-    // Aquí conectaremos el sistema de proyectiles
-    // cuando tengamos definida la clase Proyectil.
+    float origenX = x + ancho / 2.f;
+    float origenY = y + alto / 2.f;
+
+    arma.disparar(origenX, origenY, mirandoDerecha);
 }
 
 // Comportamiento al cambiar de fase
