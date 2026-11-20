@@ -6,6 +6,20 @@ namespace {
     const float INICIO_X = 100.f;    // donde aparece el jugador al empezar un nivel
     const float INICIO_Y = 500.f;
 
+    // Ids de los logros: coinciden con los logros base de GestorArchivos.
+    const int LOGRO_ANTIVIRUS = 1;   // derrotar al primer jefe
+    const int LOGRO_SIN_BUGS = 2;    // completar el juego
+    const int LOGRO_INTOCABLE = 3;   // vencer a un jefe sin perder vida en ese nivel
+    const int LOGRO_VELOCISTA = 4;   // completar un nivel en menos de 2 minutos
+    const float TIEMPO_VELOCISTA = 120.f;
+
+    const char* const NOMBRE_JUGADOR = "Jugador";
+
+    // Valores de Juego::resultadoGuardado
+    const int SIN_GUARDAR = 0;
+    const int RECORD_GUARDADO = 1;
+    const int ERROR_AL_GUARDAR = 2;
+
     bool teclaPulsada(const sf::Event& evento, sf::Keyboard::Key tecla) {
         return evento.type == sf::Event::KeyPressed && evento.key.code == tecla;
     }
@@ -45,11 +59,17 @@ Juego::Juego()
       jugador(nullptr),
       nivelActual(0),
       tiempoTotal(0.f),
-      victoria(false)
+      tiempoNivel(0.f),
+      vidaAlEmpezarNivel(0),
+      victoria(false),
+      resultadoGuardado(SIN_GUARDAR),
+      cantidadRecords(0),
+      cantidadLogros(0)
 {
     ventana.setFramerateLimit(60);
     // Sin repeticion de tecla: mantener Enter no salta de pantalla en pantalla.
     ventana.setKeyRepeatEnabled(false);
+    camara.reset(sf::FloatRect(0.f, 0.f, ANCHO, ALTO));
 
     // Pon un .ttf en assets/fuentes/ con este nombre. Si no esta, el juego
     // funciona igual pero sin textos.
@@ -57,6 +77,9 @@ Juego::Juego()
 
     for (int i = 0; i < TOTAL_NIVELES; i++) niveles[i] = nullptr;
     jugador = new Jugador(INICIO_X, INICIO_Y);
+
+    // Si data/logros.txt no existe o esta vacio, se crea con los logros base.
+    cantidadLogros = archivos.cargarLogros(logros, GestorArchivos::MAX_LOGROS);
 }
 
 Juego::~Juego() {
@@ -136,8 +159,12 @@ void Juego::actualizarJugando(float dt) {
     if (nivel == nullptr) return;
 
     tiempoTotal += dt;
+    tiempoNivel += dt;
+
     jugador->actualizar(dt);
-    nivel->actualizar(*jugador, dt);
+    nivel->actualizar(dt);
+    nivel->actualizarCamara(camara, jugador->getX() + jugador->getAncho() / 2.f,
+                            static_cast<float>(ANCHO), static_cast<float>(ALTO));
 
     if (!jugador->estaVivo()) {
         terminarPartida(false);
@@ -145,16 +172,13 @@ void Juego::actualizarJugando(float dt) {
     }
 
     if (nivel->jefeDerrotado()) {
-        if (nivelActual + 1 < TOTAL_NIVELES) {
-            avanzarNivel();
-        } else {
-            terminarPartida(true);
-        }
+        alVencerJefe();
     }
 }
 
 void Juego::dibujar() {
     ventana.clear(sf::Color(30, 30, 40));
+    ventana.setView(ventana.getDefaultView());   // pantallas fijas, sin camara
 
     switch (estado) {
         case EstadoJuego::MENU:
@@ -163,22 +187,20 @@ void Juego::dibujar() {
 
         case EstadoJuego::JUGANDO:
             if (niveles[nivelActual] != nullptr) {
+                ventana.setView(camara);         // el mundo se ve a traves de la camara
                 niveles[nivelActual]->dibujar(ventana);
+                jugador->dibujar(ventana);
+                ventana.setView(ventana.getDefaultView());
             }
-            jugador->dibujar(ventana);
-            dibujarHUD();
+            dibujarHUD();                        // el HUD no se mueve con la camara
             break;
 
         case EstadoJuego::RECORDS:
-            // TODO: mostrar los records cuando exista GestorArchivos.
-            dibujarPantalla("RECORDS", "Proximamente  -  Esc para volver",
-                            sf::Color(60, 60, 110));
+            dibujarRecords();
             break;
 
         case EstadoJuego::LOGROS:
-            // TODO: mostrar los logros cuando exista GestorArchivos.
-            dibujarPantalla("LOGROS", "Proximamente  -  Esc para volver",
-                            sf::Color(60, 110, 90));
+            dibujarLogros();
             break;
 
         case EstadoJuego::GAME_OVER: {
@@ -196,6 +218,15 @@ void Juego::dibujar() {
             pegar(linea, " s");
             dibujarTexto(linea, 28, ANCHO / 2.f, ALTO * 0.30f + 160.f,
                          sf::Color::White, true);
+
+            if (resultadoGuardado == RECORD_GUARDADO) {
+                dibujarTexto("Record guardado", 24, ANCHO / 2.f, ALTO * 0.30f + 230.f,
+                             sf::Color(120, 220, 120), true);
+            } else if (resultadoGuardado == ERROR_AL_GUARDAR) {
+                dibujarTexto("No se pudo guardar el record (existe la carpeta data?)", 24,
+                             ANCHO / 2.f, ALTO * 0.30f + 230.f,
+                             sf::Color(230, 160, 80), true);
+            }
             break;
         }
 
@@ -217,6 +248,9 @@ void Juego::cambiarEstado(EstadoJuego nuevo) {
     if (nuevo == EstadoJuego::MENU) {
         liberarNiveles();   // al volver al menu no queda ninguna partida viva
     }
+    if (nuevo == EstadoJuego::RECORDS) {
+        cargarRecords();    // se leen al entrar, asi se ve el ultimo guardado
+    }
     estado = nuevo;
 }
 
@@ -231,6 +265,7 @@ void Juego::empezarPartida() {
     liberarNiveles();
     tiempoTotal = 0.f;
     victoria = false;
+    resultadoGuardado = SIN_GUARDAR;
     cargarNivel(0);
 }
 
@@ -240,6 +275,24 @@ void Juego::cargarNivel(int indice) {
     delete niveles[indice];                 // delete de nullptr es seguro
     niveles[indice] = new Nivel(indice + 1);
     nivelActual = indice;
+
+    tiempoNivel = 0.f;
+    vidaAlEmpezarNivel = jugador->getVida();
+    niveles[indice]->actualizarCamara(camara, INICIO_X, static_cast<float>(ANCHO),
+                                      static_cast<float>(ALTO));
+}
+
+void Juego::alVencerJefe() {
+    // Logros que se ganan al vencer a un jefe.
+    if (nivelActual == 0) desbloquearLogro(LOGRO_ANTIVIRUS);
+    if (jugador->getVida() == vidaAlEmpezarNivel) desbloquearLogro(LOGRO_INTOCABLE);
+    if (tiempoNivel < TIEMPO_VELOCISTA) desbloquearLogro(LOGRO_VELOCISTA);
+
+    if (nivelActual + 1 < TOTAL_NIVELES) {
+        avanzarNivel();
+    } else {
+        terminarPartida(true);
+    }
 }
 
 void Juego::avanzarNivel() {
@@ -263,14 +316,43 @@ void Juego::liberarNiveles() {
 
 void Juego::terminarPartida(bool gano) {
     victoria = gano;
+    resultadoGuardado = SIN_GUARDAR;
     estado = EstadoJuego::GAME_OVER;
 
-    // TODO: cuando exista GestorArchivos, guardar aqui el record
-    // (tiempoTotal, nivel alcanzado) y desbloquear los logros que correspondan.
+    if (gano) {
+        desbloquearLogro(LOGRO_SIN_BUGS);
+
+        // Solo las partidas completas entran al ranking: el record es el tiempo
+        // total. (El puntaje es 0 hasta que el juego lleve puntos.)
+        Record record(NOMBRE_JUGADOR, TOTAL_NIVELES, tiempoTotal, 0);
+        resultadoGuardado = archivos.guardarRecord(record) ? RECORD_GUARDADO
+                                                           : ERROR_AL_GUARDAR;
+    }
 }
 
 // ---------------------------------------------------------------------------
-// Dibujo auxiliar
+// Records y logros
+// ---------------------------------------------------------------------------
+
+void Juego::cargarRecords() {
+    cantidadRecords = archivos.cargarRecords(records, GestorArchivos::MAX_RECORDS);
+    archivos.ordenarRecords(records, cantidadRecords);   // mejor primero
+}
+
+void Juego::desbloquearLogro(int id) {
+    for (int i = 0; i < cantidadLogros; i++) {
+        if (logros[i].getId() == id) {
+            if (!logros[i].estaDesbloqueado()) {
+                logros[i].desbloquear();
+                archivos.guardarLogros(logros, cantidadLogros);
+            }
+            return;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Dibujo
 // ---------------------------------------------------------------------------
 
 void Juego::dibujarHUD() {
@@ -301,6 +383,60 @@ void Juego::dibujarPantalla(const char* titulo, const char* ayuda, const sf::Col
 
     dibujarTexto(titulo, 64, ANCHO / 2.f, ALTO * 0.30f + 20.f, sf::Color::White, true);
     dibujarTexto(ayuda, 24, ANCHO / 2.f, ALTO * 0.30f + 110.f, sf::Color::White, true);
+}
+
+void Juego::dibujarRecords() {
+    sf::RectangleShape franja(sf::Vector2f(ANCHO, 120.f));
+    franja.setFillColor(sf::Color(60, 60, 110));
+    ventana.draw(franja);
+    dibujarTexto("RECORDS", 56, ANCHO / 2.f, 25.f, sf::Color::White, true);
+
+    if (cantidadRecords == 0) {
+        dibujarTexto("Todavia no hay records. Completa el juego para registrar uno.",
+                     24, ANCHO / 2.f, 200.f, sf::Color::White, true);
+    }
+
+    int visibles = (cantidadRecords < RECORDS_VISIBLES) ? cantidadRecords : RECORDS_VISIBLES;
+    for (int i = 0; i < visibles; i++) {
+        char linea[96] = "";
+        char numero[12];
+        escribirEntero(i + 1, numero);
+        pegar(linea, numero);
+        pegar(linea, ".  ");
+        pegar(linea, records[i].getNombre());
+        pegar(linea, "   Nivel ");
+        escribirEntero(records[i].getNivel(), numero);
+        pegar(linea, numero);
+        pegar(linea, "   ");
+        escribirEntero(static_cast<int>(records[i].getTiempo()), numero);
+        pegar(linea, numero);
+        pegar(linea, " s");
+        dibujarTexto(linea, 26, ANCHO / 2.f, 160.f + i * 42.f, sf::Color::White, true);
+    }
+
+    dibujarTexto("Esc para volver", 22, ANCHO / 2.f, ALTO - 60.f,
+                 sf::Color(180, 180, 190), true);
+}
+
+void Juego::dibujarLogros() {
+    sf::RectangleShape franja(sf::Vector2f(ANCHO, 120.f));
+    franja.setFillColor(sf::Color(60, 110, 90));
+    ventana.draw(franja);
+    dibujarTexto("LOGROS", 56, ANCHO / 2.f, 25.f, sf::Color::White, true);
+
+    for (int i = 0; i < cantidadLogros; i++) {
+        bool conseguido = logros[i].estaDesbloqueado();
+        char linea[140] = "";
+        pegar(linea, conseguido ? "[x] " : "[ ] ");
+        pegar(linea, logros[i].getNombre());
+        pegar(linea, " - ");
+        pegar(linea, logros[i].getDescripcion());
+        dibujarTexto(linea, 26, ANCHO / 2.f, 160.f + i * 42.f,
+                     conseguido ? sf::Color(120, 220, 120) : sf::Color(160, 160, 170), true);
+    }
+
+    dibujarTexto("Esc para volver", 22, ANCHO / 2.f, ALTO - 60.f,
+                 sf::Color(180, 180, 190), true);
 }
 
 void Juego::dibujarTexto(const char* texto, unsigned int tam, float x, float y,
