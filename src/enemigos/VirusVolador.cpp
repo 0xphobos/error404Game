@@ -25,6 +25,8 @@ void VirusVolador::actualizar(float dt)
     // Movimiento vertical oscilatorio
     y = posicionInicialY +
         amplitudVuelo * std::sin(tiempoVuelo * frecuenciaVuelo);
+
+    actualizarArma(dt);
 }
 
 // Dibujar al virus
@@ -43,12 +45,13 @@ void VirusVolador::dibujar(sf::RenderWindow& ventana)
     forma.setFillColor(sf::Color(40, 180, 220));
 
     ventana.draw(forma);
+
+    dibujarArma(ventana);
 }
 
-// Ataque del virus
+// Ataque por contacto
 void VirusVolador::atacar()
 {
-    // TODO:
-    // Aquí conectaremos el ataque con el sistema
-    // de proyectiles cuando conozcamos su estructura.
+    // El daño se aplicará desde el sistema de colisiones
+    // cuando el virus entre en contacto con el jugador.
 }
