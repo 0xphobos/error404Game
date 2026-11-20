@@ -11,7 +11,7 @@ VirusCaminante::VirusCaminante(float x, float y,
 {
 }
 
-// Actualizar movimiento
+// Actualizar movimiento y arma
 void VirusCaminante::actualizar(float dt)
 {
     if (!estaVivo())
@@ -34,6 +34,8 @@ void VirusCaminante::actualizar(float dt)
         x = limiteDerecho - ancho;
         mirandoDerecha = false;
     }
+
+    actualizarArma(dt);
 }
 
 // Dibujar al virus
@@ -52,12 +54,13 @@ void VirusCaminante::dibujar(sf::RenderWindow& ventana)
     forma.setFillColor(sf::Color(40, 180, 70));
 
     ventana.draw(forma);
+
+    dibujarArma(ventana);
 }
 
-// Ataque del virus
+// Ataque por contacto
 void VirusCaminante::atacar()
 {
-    // TODO:
-    // Aquí conectaremos el daño por contacto
-    // cuando integremos el sistema de combate.
+    // El daño se aplicará desde el sistema de colisiones
+    // cuando el virus entre en contacto con el jugador.
 }
