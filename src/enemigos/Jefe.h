@@ -1,30 +1,63 @@
-#pragma once
 
-#include "enemigos/Enemigo.h"
+#include "enemigos/Jefe.h"
 
-class Jefe : public Enemigo
+Jefe::Jefe(float x, float y,
+           float ancho, float alto,
+           int vida, float velocidad)
+    : Enemigo(x, y, ancho, alto, vida, velocidad),
+      vidaMaxima(vida),
+      fase(1)
 {
-protected:
-    int vidaMaxima;
-    int fase;
+}
 
-    // Comprueba si el jefe debe cambiar de fase
-    void actualizarFase();
+void Jefe::actualizarFase()
+{
+    if (vidaMaxima <= 0)
+    {
+        return;
+    }
 
-    // Se ejecuta cuando cambia la fase
-    virtual void alCambiarFase(int nuevaFase);
+    float porcentajeVida =
+        static_cast<float>(vida) / vidaMaxima;
 
-public:
-    Jefe(float x, float y,
-         float ancho, float alto,
-         int vida, float velocidad);
+    if (porcentajeVida <= 0.30f)
+    {
+        fase = 3;
+    }
+    else if (porcentajeVida <= 0.60f)
+    {
+        fase = 2;
+    }
+    else
+    {
+        fase = 1;
+    }
+}
 
-    void actualizar(float dt) override;
+void Jefe::alCambiarFase(int nuevaFase)
+{
+}
 
-    // Cada jefe tendrá su propio dibujo y patrón de ataque
-    void dibujar(sf::RenderWindow& ventana) override = 0;
-    void atacar() override = 0;
+void Jefe::actualizar(float dt)
+{
+    int faseAnterior = fase;
 
-    int getFase() const;
-    int getVidaMaxima() const;
-};
+    actualizarFase();
+
+    if (fase != faseAnterior)
+    {
+        alCambiarFase(fase);
+    }
+
+    actualizarArma(dt);
+}
+
+int Jefe::getFase() const
+{
+    return fase;
+}
+
+int Jefe::getVidaMaxima() const
+{
+    return vidaMaxima;
+}
