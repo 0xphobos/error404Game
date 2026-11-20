@@ -13,10 +13,13 @@ JefeMapa2::JefeMapa2(float x, float y)
 // Actualización del jefe
 void JefeMapa2::actualizar(float dt)
 {
-    // Actualizar las fases
+    if (!estaVivo())
+    {
+        return;
+    }
+
     Jefe::actualizar(dt);
 
-    // Controlar el tiempo entre ataques
     tiempoAtaque += dt;
 
     if (tiempoAtaque >= intervaloAtaque)
@@ -25,16 +28,20 @@ void JefeMapa2::actualizar(float dt)
     }
 }
 
-// Dibujar al jefe
+// Dibujar al jefe y sus proyectiles
 void JefeMapa2::dibujar(sf::RenderWindow& ventana)
 {
+    if (!estaVivo())
+    {
+        return;
+    }
+
     sf::RectangleShape forma(
         sf::Vector2f(ancho, alto)
     );
 
     forma.setPosition(x, y);
 
-    // Diferenciar visualmente las fases
     if (fase == 1)
     {
         forma.setFillColor(sf::Color(30, 150, 170));
@@ -48,7 +55,6 @@ void JefeMapa2::dibujar(sf::RenderWindow& ventana)
         forma.setFillColor(sf::Color(180, 30, 70));
     }
 
-    // Diferenciar las dos variantes de ataque
     if (ataqueAlternativo)
     {
         forma.setOutlineThickness(5.f);
@@ -56,25 +62,48 @@ void JefeMapa2::dibujar(sf::RenderWindow& ventana)
     }
 
     ventana.draw(forma);
+
+    dibujarArma(ventana);
 }
 
-// Ejecutar el ataque
+// Ejecutar los patrones de ataque
 void JefeMapa2::atacar()
 {
     tiempoAtaque = 0.f;
 
-    // Alternar entre los dos patrones de ataque
     ataqueAlternativo = !ataqueAlternativo;
+
+    float origenX = x + ancho / 2.f;
+    float origenY = y + alto / 2.f;
+
+    float direccion = mirandoDerecha ? 1.f : -1.f;
 
     if (ataqueAlternativo)
     {
-        // TODO: Primer patrón de ataque.
-        // Aquí conectaremos los proyectiles.
+        // Patrón 1: disparo horizontal
+        arma.disparar(
+            origenX,
+            origenY,
+            mirandoDerecha
+        );
     }
     else
     {
-        // TODO: Segundo patrón de ataque.
-        // Aquí conectaremos los proyectiles.
+        // Patrón 2: disparo en abanico
+        arma.dispararHacia(
+            origenX, origenY,
+            direccion, -0.5f
+        );
+
+        arma.dispararHacia(
+            origenX, origenY,
+            direccion, 0.f
+        );
+
+        arma.dispararHacia(
+            origenX, origenY,
+            direccion, 0.5f
+        );
     }
 }
 
