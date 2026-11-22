@@ -19,6 +19,7 @@ file(GLOB_RECURSE FUENTES CONFIGURE_DEPENDS src/*.cpp)
 add_executable(RunAndGun ${FUENTES})
 target_include_directories(RunAndGun PRIVATE src)
 target_link_libraries(RunAndGun PRIVATE sfml-graphics sfml-window sfml-system)
+target_link_options(RunAndGun PRIVATE -static-libgcc -static-libstdc++ -static)
 
 # Copia assets y data junto al ejecutable
 add_custom_command(TARGET RunAndGun POST_BUILD
